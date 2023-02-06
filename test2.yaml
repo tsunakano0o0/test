@@ -1,0 +1,336 @@
+
+#Githubrepositoryの作成 
+
+```
+#git登録情報
+https://github.co.jp/
+メールアドレス
+パスワード
+ユーザーネーム
+
+***
+#ログイン出来たらアクセストークンを作成
+右上のアイコンからsettings > developer settings >personal access tokens > Tokens(classic) > generate new token > generate new token(classic)
+
+#Noteにキーの名前を入力、expirationはできる限り日数を限定(それか終わり次第クリーンアップする事を推奨)
+#slectscopeはrepoの欄を全てチェック>作成
+#アクセストークンはコピー(絶対)
+
+
+#リモートリポジトリの作成
+右上の窓からyourrepositories > new >   
+Repository nameの記入とprivateを選択して作成
+
+
+#リモートリポジトリの中身を編集する(gitのコマンドが使える別コンソールにて作業)
+
+#作業ディレクトリの作成
+mkdir gitworkspace
+
+#作業ディレクトリ下にローカルリポジトリを作成
+git init 
+#リモートリポジトリの登録
+git remote add origin [リモートリポジトリのURL~.git]
+
+
+#テストファイルの作成(中身は適当)
+vi README.txt
+
+#ステージング環境に追加
+git add README.txt
+#ローカルリポジトリに保存
+git commit -m "コメントは何でも可"
+---
+[master (root-commit) a116233] test
+ 1 file changed, 1 insertion(+)
+ create mode 100644 README.txt
+---
+#ローカルからリモートにpushする
+git push origin master
+---
+Username for 'https://github.com': ユーザーネーム
+Password for 'https://sakakin0o0@github.com':　アクセストークン
+
+Enumerating objects: 3, done.
+Counting objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 220 bytes | 220.00 KiB/s, done.
+Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
+To https://github.com/sakakin0o0/testrepo.git
+ * [new branch]      master -> master
+
+---
+#ここまでで管理者にプルリクエストが送信された、それを承認し、マージを行うとリモートリポジトリにテストファイルが作成され、ブランチを作成できるようになる。
+
+#GitOpsで動かす構成ファイルの作成(別ブランチを作成)
+#developブランチの作成
+git branch develop
+#ブランチの切り替え
+git checkout develop
+#構成ファイルを置くディレクトリの作成
+mkdir manifest
+#ディレクトリ下に移動
+cd manifest
+
+#ディレクトリ直下にマニフェストファイルの作成
+vi git_manifest.yaml
+`````
+
+```
+#投票アプリの構成ファイル
+# https://github.com/tsunakano0o0/test 
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-vote-back
+  namespace: cluster-config
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: azure-vote-back
+  template:
+    metadata:
+      labels:
+        app: azure-vote-back
+    spec:
+      nodeSelector:
+        "beta.kubernetes.io/os": linux
+      containers:
+      - name: azure-vote-back
+        image: mcr.microsoft.com/oss/bitnami/redis:6.0.8
+        env:
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        ports:
+        - containerPort: 6379
+          name: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azure-vote-back
+  namespace: cluster-config
+spec:
+  ports:
+  - port: 6379
+  selector:
+    app: azure-vote-back
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-vote-front
+  namespace: cluster-config
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: azure-vote-front
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5 
+  template:
+    metadata:
+      labels:
+        app: azure-vote-front
+    spec:
+      nodeSelector:
+        "beta.kubernetes.io/os": linux
+      containers:
+      - name: azure-vote-front
+        image: mcr.microsoft.com/azure-functions/base:4
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 250m
+          limits:
+            cpu: 500m
+        env:
+        - name: REDIS
+          value: "azure-vote-back"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azure-vote-front
+  namespace: cluster-config
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+  selector:
+    app: azure-vote-front
+
+```
+
+```
+#ディレクトリを一つ上に変更
+cd ../
+#同じ手順でプルリクエストを送信
+git add manifest
+git commit -m "構成ファイル"
+
+#リモートリポジトリにdevelopブランチの作成
+git push origin develop
+
+```
+
+```
+#gitのwebサイトにてGUI操作に移動
+#ブランチをdevelopに変更 > pullrequests > new pull request > master<-developという形にする
+#create newrequest > 変更せず　create pull request > 画面遷移後 Merge pull request をクリック
+# conform merge > delete branch
+#これでGUI上でmasterブランチにフォルダが増えていれば成功
+
+```
+
+#kubernetesクラスターの作成
+
+-  Portal上・GCPコンソール上で作成
+
+#AzureArc対応Kubernetesの作成
+```
+#AzureArc対応Kubernetesのデプロイ (対象クラスタのコンソールにて)
+
+#AzureArc対応kubernetesの名前
+NAME=
+#リソースグループネーム
+RG=
+location=japaneast
+#サブスクリプションid
+SUB=
+
+#azコマンドのインストール
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash 
+#helmのインストール
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+az login --use-device-code
+# Azure サブスクリプションの設定
+az account set --subscription $SUB
+# 接続されたクラスターの作成
+az connectedk8s connect --name $NAME --resource-group $RG --location $location  
+
+#サービスアカウントの作成(対象クラスタのコンソールにて)
+kubectl create serviceaccount demo-user
+kubectl create clusterrolebinding demo-user-binding --clusterrole cluster-admin --serviceaccount default:demo-user
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-user-secret
+  annotations:
+    kubernetes.io/service-account.name: demo-user
+type: kubernetes.io/service-account-token
+EOF
+TOKEN=$(kubectl get secret demo-user-secret -o jsonpath='{$.data.token}' | base64 -d | sed 's/$/\n/g')
+echo $TOKEN
+
+#AzurePortalから接続
+
+#アクセストークンを格納
+TOKEN=
+az connectedk8s proxy -n $NAME -g $RG --token $TOKEN &
+
+# 疎通確認
+# 現在の名前空間上にあるすべてのサービスのリストを表示します
+kubectl get services
+#名前空間内に存在するpodを全て表示
+kubectl get pods --all-namespaces
+
+```
+
+
+#GitOpsでリポジトリ内のアプリケーションをデプロイ
+
+-  AzurePortal上からデプロイ
+
+- CLIからデプロイ
+```
+az version
+az upgrade
+
+#リソースプロバイダ登録
+az provider register --namespace Microsoft.Kubernetes
+az provider register --namespace Microsoft.ContainerService
+az provider register --namespace Microsoft.KubernetesConfiguration
+
+#状態がRegisterdになっていれば完了
+az provider show -n Microsoft.KubernetesConfiguration -o table
+
+#Cliの拡張機能を有効にする
+az extension add -n k8s-configuration
+az extension add -n k8s-extension
+
+az extension update -n k8s-configuration
+az extension update -n k8s-extension
+
+az extension list -o table
+
+az k8s-configuration flux create -g $RG \
+-c $NAME \
+-n git-arc-test \
+--namespace cluster-config \
+-t connectedClusters \
+--scope cluster \
+-u #リポジトリのURL \
+--branch master  \
+--kustomization name=infra path=./manifest prune=true \
+
+
+```
+
+#自動デプロイの確認
+
+-  それぞれ更新すると自動でクラスタにデプロイされ、webブラウザ上のバージョン表記が変更させる
+```
+#ブランチの切り替え
+git checkout develop
+#構成ファイルを置くディレクトリの作成
+#ディレクトリ下に移動
+cd manifest
+
+#ディレクトリ直下にマニフェストファイルの作成
+vi git_manifest.yaml
+
+#azure-vote-frontのイメージをver.4.0に変更する
+mcr.microsoft.com/azure-functions/base:4
+
+#ディレクトリを一つ上に変更
+cd ../
+#同じ手順でプルリクエストを送信
+git add manifest
+git commit -m "構成ファイル"
+
+#リモートリポジトリにプルリクエストの送信
+git push origin develop
+
+#承認するとデプロイまで自動で行ってくれる
+
+#ver.3.0
+mcr.microsoft.com/azure-functions/base:3.0
+#ver.2.0
+mcr.microsoft.com/azure-functions/base:2.0
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
